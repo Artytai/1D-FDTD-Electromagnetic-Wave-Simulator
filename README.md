@@ -33,21 +33,10 @@ A browser-based, interactive simulation of electromagnetic wave propagation usin
 
 ## 🚀 Quick Start
 
-### Option A — Open locally
+###  Open locally
 1. Clone or download the repo.
 2. Open `index.html` in any modern browser (Chrome, Edge, Firefox, Safari).
 3. Click **Play** (or it may auto-start if your version uses auto-run).
-
-### Option B — Host with GitHub Pages
-1. Push this repo to GitHub.
-2. In the repo, go to **Settings → Pages**.
-3. Under **Build and deployment**, set:
-   - **Source**: `Deploy from a branch`
-   - **Branch**: `main` (or `master`)
-   - **Folder**: `/root`
-4. Save. After a minute, your app will be live at:  
-   `https://YOUR_GITHUB_USERNAME.github.io/1D-FDTD-Electromagnetic-Wave-Simulator/`
-5. Put that link in your submission’s **Live URL** field.
 
 ---
 ## 🎛️ Controls & Parameters
