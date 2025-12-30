@@ -1,0 +1,276 @@
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>1D FDTD Electromagnetic Wave Simulator</title>
+  <style>
+    /* Dark theme and layout (no external style.css needed) */
+    body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+           background:#111; color:#eee; margin:0; }
+    header { text-align:center; padding:12px 10px; background:#222; border-bottom:1px solid #444; }
+    h1 { margin:0 0 6px; font-size:1.35rem; }
+    p  { margin:0; color:#b3b3b3; }
+    main { max-width:1100px; margin:0 auto; padding:12px 16px 24px; }
+
+    .panel { padding:10px; background:#222; border:1px solid #444; border-radius:10px; }
+    .grid  { display:grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+             gap:8px 14px; margin-bottom:10px; }
+    label  { display:flex; align-items:center; justify-content:space-between; gap:8px;
+             background:#1a1a1a; padding:8px 10px; border:1px solid #444; border-radius:8px; }
+    input, select { margin:0; padding:6px 8px; background:#222; color:#eee;
+                    border:1px solid #444; border-radius:6px; min-width:120px; }
+    input[type="number"] { text-align:right; }
+    .buttons { display:flex; flex-wrap:wrap; gap:8px; margin-top:6px; }
+    button { padding:8px 12px; background:#222; color:#eee; border:1px solid #444;
+             border-radius:8px; font-weight:600; cursor:pointer; }
+    button:hover { background:#262626; border-color:#555; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline:2px solid #3b82f6; outline-offset:3px;
+    }
+
+    .viz { position:relative; margin-top:12px; }
+    canvas { display:block; margin:10px auto; background:#000; border:1px solid #444;
+             border-radius:10px; max-width:100%; height:auto; }
+    .legend { display:flex; flex-wrap:wrap; justify-content:center; gap:10px 14px;
+              margin:6px auto 0; color:#bbb; font-size:0.9rem; }
+    .legend span { display:inline-flex; align-items:center; gap:8px; padding:4px 10px;
+                   border:1px solid #444; border-radius:999px; background:#1a1a1a; }
+    .legend span::before { content:""; display:inline-block; width:14px; height:2px; border-radius:1px; }
+    .legend .ex::before { background:#00ff9c; }
+    .legend .hy::before { background:#ff7b00; }
+    .legend .mat::before { background:linear-gradient(90deg,#04a3b8 50%, transparent 50%); }
+
+    .readout { padding:10px; margin-top:10px; background:#222; border:1px solid #444; border-radius:10px; }
+    #readout { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; }
+    @media (max-width:640px){ h1{font-size:1.15rem} .grid{grid-template-columns:1fr} .buttons{justify-content:center} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>1D FDTD Electromagnetic Wave Simulator</h1>
+    <p>Simulate EM wave propagation, reflection, and refraction with interactive controls.</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-label="Simulation controls">
+      <div class="grid">
+        <label>Grid points (N): <input type="number" id="N" value="300" min="50" max="4000"></label>
+        <label>Cell size Δx (m): <input type="number" id="dx" value="0.002" step="0.001"></label>
+        <label>CFL factor (≤ 1): <input type="number" id="cfl" value="0.9" step="0.05" min="0.01" max="1"></label>
+      </div>
+      <div class="grid">
+        <label>Source type:
+          <select id="sourceType"><option value="sine">Sine</option><option value="gaussian">Gaussian Pulse</option></select>
+        </label>
+        <label>Frequency (Hz): <input type="number" id="freq" value="2e8" step="1e6"></label>
+        <label>Amplitude: <input type="number" id="amp" value="1" step="0.1"></label>
+        <label>Source index i<sub>s</sub>: <input type="number" id="srcIndex" value="60" min="0"></label>
+      </div>
+      <div class="grid">
+        <span style="color:#b3b3b3">Materials (relative permittivity ε<sub>r</sub>):</span>
+        <label>Region A (0 → split): <input type="number" id="epsA" value="1" step="0.1"></label>
+        <label>Split index: <input type="number" id="split" value="180" min="0"></label>
+        <label>Region B (split → N): <input type="number" id="epsB" value="2.5" step="0.1"></label>
+      </div>
+      <div class="grid">
+        <label>Absorbing edge width (cells): <input type="number" id="pmlWidth" value="20" min="0"></label>
+        <label>Edge damping (0–0.2): <input type="number" id="damp" value="0.05" step="0.01" min="0" max="0.2"></label>
+      </div>
+      <div class="buttons">
+        <button id="apply" type="button">Apply / Reset</button>
+        <button id="playPause" type="button">⏸ Pause</button>
+        <button id="stepOnce" type="button">Step once</button>
+        <button id="snapshot" type="button">Save snapshot</button>
+        <button id="clear" type="button">Clear fields</button>
+      </div>
+    </section>
+
+    <section class="viz" aria-label="Field visualization">
+      <canvas id="canvas" width="900" height="280" aria-label="Field plot"></canvas>
+      <div class="legend">
+        <span class="ex">E-field</span>
+        <span class="hy">H-field</span>
+        <span class="mat">Material boundary</span>
+      </div>
+    </section>
+
+    <section class="readout" aria-live="polite">
+      <div id="readout"></div>
+    </section>
+  </main>
+
+  <script>
+    /* Inline JS — no external main.js required. Auto-starts the simulation. */
+    (() => {
+      "use strict";
+
+      // Show any unexpected errors
+      window.addEventListener("error", e => console.error("[fdtd] Uncaught:", e.message));
+
+      // Constants
+      const c=299792458, mu0=4*Math.PI*1e-7, eps0=1/(mu0*c*c);
+
+      // DOM
+      const canvas=document.getElementById("canvas");
+      const ctx=canvas.getContext("2d",{alpha:false});
+      const readout=document.getElementById("readout");
+
+      // State
+      let N=Number(document.getElementById("N").value);
+      let dx=Number(document.getElementById("dx").value);
+      let CFL=Number(document.getElementById("cfl").value);
+      let dt=CFL*dx/c, time=0, running=true; // AUTO-START
+
+      let sourceType=document.getElementById("sourceType").value;
+      let freq=Number(document.getElementById("freq").value);
+      let amp=Number(document.getElementById("amp").value);
+      let srcIndex=Number(document.getElementById("srcIndex").value);
+
+      let split=Number(document.getElementById("split").value);
+      let epsA=Number(document.getElementById("epsA").value);
+      let epsB=Number(document.getElementById("epsB").value);
+
+      let pmlWidth=Number(document.getElementById("pmlWidth").value);
+      let damp=Number(document.getElementById("damp").value);
+
+      let Ex=new Float64Array(N);
+      let Hy=new Float64Array(N);
+      let eps=new Float64Array(N);
+
+      // Helpers
+      const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+      function rebuildMaterial(){
+        eps=new Float64Array(N);
+        for(let i=0;i<N;i++) eps[i]=eps0*(i<split?epsA:epsB);
+      }
+      function reset(){
+        Ex=new Float64Array(N);
+        Hy=new Float64Array(N);
+        time=0;
+      }
+      function energy(){
+        let e=0;
+        for(let i=0;i<N;i++) e += 0.5*eps[i]*Ex[i]*Ex[i] + 0.5*mu0*Hy[i]*Hy[i];
+        return e;
+      }
+      function source(t){
+        if(sourceType==="sine") return amp*Math.sin(2*Math.PI*freq*t);
+        const tau=freq>0?1/(6*freq):1e-9, t0=6*tau, s=(t-t0)/tau;
+        return amp*Math.exp(-(s*s));
+      }
+
+      // Init once
+      function init(){
+        // re-read inputs (in case user changed)
+        N=clamp(Math.floor(Number(document.getElementById("N").value)||N),50,20000);
+        dx=Math.max(1e-9, Number(document.getElementById("dx").value)||dx);
+        CFL=clamp(Number(document.getElementById("cfl").value)||CFL, 0.01, 1.0);
+        dt=CFL*dx/c;
+
+        sourceType=document.getElementById("sourceType").value||sourceType;
+        freq=Math.max(0, Number(document.getElementById("freq").value)||freq);
+        amp=Number(document.getElementById("amp").value)||amp;
+        srcIndex=clamp(Math.floor(Number(document.getElementById("srcIndex").value)||srcIndex), 0, N-1);
+
+        split=clamp(Math.floor(Number(document.getElementById("split").value)||split), 0, N-1);
+        epsA=Math.max(0.1, Number(document.getElementById("epsA").value)||epsA);
+        epsB=Math.max(0.1, Number(document.getElementById("epsB").value)||epsB);
+
+        pmlWidth=Math.max(0, Math.floor(Number(document.getElementById("pmlWidth").value)||pmlWidth));
+        damp=clamp(Number(document.getElementById("damp").value)||damp, 0, 0.2);
+
+        // resize canvas to container
+        try{
+          const W=canvas.parentElement?.clientWidth||900;
+          canvas.width=Math.max(600, Math.floor(W*0.98));
+          canvas.height=280;
+        }catch{}
+
+        rebuildMaterial();
+        reset();
+        draw(); hud();
+      }
+
+      // Yee step
+      function step(){
+        for(let i=0;i<N-1;i++){
+          Hy[i] += (dt/(mu0*dx))*(Ex[i+1]-Ex[i]);
+        }
+        Hy[N-1]=Hy[N-2];
+
+        if(srcIndex>=0 && srcIndex<N) Ex[srcIndex]+=source(time);
+
+        for(let i=1;i<N-1;i++){
+          Ex[i] += (dt/(eps[i]*dx))*(Hy[i]-Hy[i-1]);
+        }
+        Ex[0]=0; Ex[N-1]=0;
+
+        const w=Math.min(pmlWidth, Math.floor(N/2));
+        for(let i=0;i<w;i++){
+          const s=(w-i)/w, f=1 - damp*s*s;
+          Ex[i]*=f; Hy[i]*=f; const j=N-1-i; Ex[j]*=f; Hy[j]*=f;
+        }
+
+        time+=dt;
+        draw(); hud();
+      }
+
+      // Drawing
+      function draw(){
+        const w=canvas.width, h=canvas.height;
+        ctx.clearRect(0,0,w,h);
+
+        ctx.strokeStyle="#2b2e4b"; ctx.beginPath();
+        ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
+
+        const exMax=Math.max(1e-9, ...Ex.map(v=>Math.abs(v)));
+        const hyMax=Math.max(1e-9, ...Hy.map(v=>Math.abs(v)));
+        const exS=0.45*h/exMax, hyS=0.45*h/hyMax, xS=w/(N-1);
+
+        ctx.strokeStyle="#00ff9c"; ctx.beginPath();
+        for(let i=0;i<N;i++){ const x=i*xS, y=h/2-Ex[i]*exS; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+        ctx.stroke();
+
+        ctx.strokeStyle="#ff7b00"; ctx.beginPath();
+        for(let i=0;i<N;i++){ const x=i*xS, y=h/2-Hy[i]*hyS; i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+        ctx.stroke();
+
+        ctx.setLineDash([6,6]); ctx.strokeStyle="#04a3b8";
+        ctx.beginPath(); const xb=clamp(split,0,N-1)*xS;
+        ctx.moveTo(xb,0); ctx.lineTo(xb,h); ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.fillStyle="#6ee7ff"; ctx.beginPath();
+        ctx.arc(clamp(srcIndex,0,N-1)*xS, h-14, 5, 0, Math.PI*2); ctx.fill();
+      }
+
+      function hud(){
+        readout.textContent =
+          `t=${time.toExponential(3)} s | dt=${dt.toExponential(3)} s | CFL=${CFL.toFixed(2)} | ` +
+          `N=${N} | dx=${dx} m | src=${srcIndex} | εr=[${epsA} | ${epsB}] | Energy=${energy().toExponential(3)}`;
+      }
+
+      // Loop — auto-start
+      let raf=null;
+      function start(){ if(raf) return; const loop=()=>{ step(); raf=requestAnimationFrame(loop); }; raf=requestAnimationFrame(loop); }
+      function stop(){ if(!raf) return; cancelAnimationFrame(raf); raf=null; }
+
+      // Wire buttons
+      document.getElementById("apply").addEventListener("click", ()=>{ stop(); init(); start(); });
+      document.getElementById("playPause").addEventListener("click", (e)=>{ running=!running; e.target.textContent=running?"⏸ Pause":"▶️ Play"; if(running) start(); else stop(); });
+      document.getElementById("stepOnce").addEventListener("click", ()=>{ stop(); step(); });
+      document.getElementById("snapshot").addEventListener("click", ()=>{
+        const a=document.createElement("a"); a.download=`fdtd_${time.toExponential(3)}.png`;
+        a.href=canvas.toDataURL("image/png"); a.click();
+      });
+      document.getElementById("clear").addEventListener("click", ()=>{ reset(); draw(); hud(); });
+
+      // Boot: init once and auto-start
+      init();
+      start();
+    })();
+  </script>
+</body>
+</html>
