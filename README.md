@@ -3,11 +3,6 @@
 
 A browser-based, interactive simulation of electromagnetic wave propagation using the **Finite-Difference Time-Domain (FDTD)** method (1D Yee scheme). The app renders **E-field (Ex)** and **H-field (Hy)** in real time, supports **material interfaces** via εᵣ split, and provides simple **edge damping** (PML-like) to minimize reflections.
 
-> **Live demo:** (add after enabling GitHub Pages)  
-> https://YOUR_GITHUB_USERNAME.github.io/1D-FDTD-Electromagnetic-Wave-Simulator/
-
-> **Code:**  
-> https://github.com/YOUR_GITHUB_USERNAME/1D-FDTD-Electromagnetic-Wave-Simulator
 
 ---
 
