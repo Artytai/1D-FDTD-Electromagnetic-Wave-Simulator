@@ -50,5 +50,34 @@ A browser-based, interactive simulation of electromagnetic wave propagation usin
 5. Put that link in your submission’s **Live URL** field.
 
 ---
+## 🎛️ Controls & Parameters
 
-## 📁 Project Structure
+- **Grid points (N)**: number of cells in the 1D grid.
+- **Cell size (Δx)**: spatial step in meters.
+- **CFL factor**: stability factor; `dt = CFL * Δx / c`. Keep ≤ 1 (typically 0.5–0.95).
+- **Source type**: `Sine` or `Gaussian Pulse`.
+- **Frequency (Hz)**: sinusoid/pulse frequency.
+- **Amplitude**: source amplitude.
+- **Source index iₛ**: cell at which the source is injected.
+- **Region A εᵣ**, **Region B εᵣ**, **Split index**: define a two-region medium.
+- **Absorber width**: number of cells near edges with damping.
+- **Edge damping**: damping strength (0–0.2). Higher values reduce reflections more, but can over-damp.
+
+---
+
+## 🧠 Physics Model (Short)
+
+- **Discretization**: 1D **Yee** leapfrog scheme:
+  - Update **H** from spatial differences of **E**.
+  - Update **E** from spatial differences of **H** using local **ε = ε₀·εᵣ**.
+- **Time step**: `dt = CFL · Δx / c` (conservative vacuum limit).
+- **Material interface**: set **εᵣ** per cell using the split index.
+- **Source**: soft source added to `Ex[iₛ]`, either sinusoidal or Gaussian pulse.
+- **Edge damping**: simple quadratic profile at both ends (PML-like), not a full Berenger PML but effective for demos.
+- **Energy**: `E_total ≈ Σ(½ ε Ex² + ½ μ₀ Hy²)` used as a diagnostic.
+
+---
+## 🙏 Acknowledgments
+
+- Built by Arthur Tai.  
+- Thanks to the FDTD/Yee method literature for foundational ideas (discrete-time EM on staggered grids).
